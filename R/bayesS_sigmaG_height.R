@@ -1,0 +1,26 @@
+require(tidyverse)
+require(cmdstanr)
+require(logger)
+#require(rstan)
+#ukb_data <- readRDS("../test/unscaled_test.rds")
+ukb_data <- readRDS("")
+#ukb_data <- ukb_data %>% filter(iter==500)
+#ukb_data$u_beta<-ukb_data$u_beta/ukb_data$gen_sd
+hweq <- function(x){sqrt(2*x*(1-x))}
+logger::log_info("max maf: {max( ukb_data$MAF)}")
+ukb_data <- ukb_data %>% mutate(hw = hweq(MAF)) 
+ukb_data$u_beta<-ukb_data$u_beta/ukb_data$MAF
+logger::log_info("sum of squares beta:{sum(ukb_data$u_beta^2)}") 
+ukb_list <- list(J= nrow(ukb_data), beta=ukb_data$u_beta, f=ukb_data$MAF)
+iter=4000
+options(mc.cores = parallel::detectCores() -1)
+set_cmdstan_path(path = "/work/ext-unil-ctgg/tdaniel/genomicarchitecture/cmdstan")
+sm <- cmdstan_model("/work/ext-unil-ctgg/tdaniel/genomicarchitecture/models/simple.stan")
+#sm <- stan_model("simple.stan")
+#height_simple<- sm$sample(ukb_data,chains=2,iter_warmup =ceiling(iter/2), iter_sampling = ceiling(iter/2),thin=1, threads_per_chain = 10, refresh=10)
+logger::log_info('optimizing')
+height_simple<- sm$optimize(data=ukb_list)
+logger::log_info('summarising')
+height_simple$summary(c("sigma","S_coef"))
+logger::log_info('saving')
+#saveRDS(height_simple, "height_simple.rds")
